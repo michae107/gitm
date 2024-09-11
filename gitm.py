@@ -44,23 +44,32 @@ class Command:
         command_parsed = self.command
         if not isinstance(command_parsed, str):
             command_parsed = ' '.join(command_parsed)
-        print(command_parsed)
         process = subprocess.Popen(command_parsed.split(" "), cwd=cwd, stderr=sys.stderr, stdout=subprocess.PIPE)
         stdout, stderr = process.communicate()
-        return stdout, stderr
+        return stdout.decode()
 
 
 def fg(command):
-    # if isinstance(command, list) or isinstance(command, tuple):
-        for i in command:
-            i.run()
-    # else:
-        # command.run()
+    for i in command:
+        i.run()
 
 def bg(command):
     thread = threading.Thread(target=lambda: fg(command))
     thread.start()
-    # fg(command)
+
+def get_submodules():
+    lines = Command('git submodule').run().split("\n")
+    submodules = []
+    for line in lines:
+        if len(line) == 0: continue
+        submodules.append(line.strip().split(" ")[1])
+    return submodules
+
+def is_submodule(name):
+    for submodule in get_submodules():
+        if submodule == name:
+            return True
+    return False
 
 def get_git_ignored_files(repo_directory):
     return  subprocess.run(
@@ -72,7 +81,7 @@ def get_git_ignored_files(repo_directory):
 
 if __name__ == "__main__":
     repos = []
-    with open("gitm.txt", 'r') as f:
+    with open(".gitm", 'r') as f:
         for line in f:
             repos.append(Repo(line.strip()))
 
@@ -83,16 +92,21 @@ if __name__ == "__main__":
 
     print(f"gitm {cwd}")
 
-    if args.command == "init":
-        # if os.path.exists(".git") and os.path.exists("gitm.txt"):
+    if args.command == "status":
+        for repo in repos:
+            print(str(repo))
+        print(get_submodules())
+    elif args.command == "init":
+        # if os.path.exists(".git") and os.path.exists(".gitm"):
         #     sys.exit("gitm is already inititalised in this directory")
         if not os.path.exists(".git"):
             fg([Command("git init")])
-        if os.path.exists("gitm.txt"):
+        if os.path.exists(".gitm"):
             for repo in repos:
-                if not os.path.isdir(repo.path):
-                    bg([Command(['git submodule add', repo.url, repo.local_path]), Command('git submodule update --init --recursive')])
-            
+                if not os.path.isdir(repo.path) or not is_submodule(repo.name):
+                    fg([Command(['git submodule add', repo.url, repo.local_path])]) #, Command('git submodule update --init --recursive')
+                    fg([Command('gitm init', cwd=repo.path)])
+
     # elif cmd == "clone":
     #     for repo in repos:
     #         if not os.path.isdir(self.path):
