@@ -5,38 +5,25 @@ import subprocess
 import argparse
 import threading
 
-cwd = os.getcwd()
+root = os.getcwd()
 
-# def remove_remotes(repo_path):
-#     git_dir = os.path.join(repo_path, ".git")
-#     if os.path.isdir(git_dir):
-#         print(f"Removing remote origins in: {repo_path}")
-#         remotes = subprocess.check_output(['git', 'remote'], cwd=repo_path).decode().splitlines()
-#         if 'origin' in remotes:
-#             subprocess.run(['git', 'remote', 'remove', 'origin'], cwd=repo_path, check=True)
-#             print(f"Removed origin from {repo_path}")
-#         else:
-#             print(f"No origin found in {repo_path}")
-
-# def traverse(start_dir):
-#     for root, dirs, files in os.walk(start_dir):
-#         # if ".git" in dirs:
-#         #     remove_remotes(root)
-#         for d in dirs:
-#             traverse(os.path.join(root, d))
+# todo 
+# allow set remotes of all repos
+# github api create repo
+# check file sizes for lfs with >git ls-files --others --ignored --exclude-standard
 
 class Repo:
     def __init__(self, repo_url):
         self.url = repo_url
         self.name = os.path.basename(self.url).replace('.git', '')
         self.local_path = self.name
-        self.path = os.path.join(cwd, self.local_path)
+        self.path = os.path.join(root, self.local_path)
 
     def __repr__(self):
-        return f"{self.name} {self.url}"
+        return f"{self.name} {self.url} {self.path}"
 
 class Command:
-    def __init__(self, command, cwd=cwd):
+    def __init__(self, command, cwd=root):
         self.command = command
         self.cwd = cwd
 
@@ -44,8 +31,15 @@ class Command:
         command_parsed = self.command
         if not isinstance(command_parsed, str):
             command_parsed = ' '.join(command_parsed)
-        process = subprocess.Popen(command_parsed.split(" "), cwd=cwd, stderr=sys.stderr, stdout=subprocess.PIPE)
+
+        print(str(self.cwd) + " : " + command_parsed)
+
+        process = subprocess.Popen(command_parsed.split(" "), cwd=self.cwd, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
         stdout, stderr = process.communicate()
+
+        if process.returncode != 0:
+            print(stderr.decode())
+            os._exit(1)
         return stdout.decode()
 
 
@@ -57,64 +51,69 @@ def bg(command):
     thread = threading.Thread(target=lambda: fg(command))
     thread.start()
 
-def get_submodules():
+submodules = []
+def update_submodules():
     lines = Command('git submodule').run().split("\n")
-    submodules = []
+    submodules.clear()
     for line in lines:
         if len(line) == 0: continue
         submodules.append(line.strip().split(" ")[1])
     return submodules
 
 def is_submodule(name):
-    for submodule in get_submodules():
+    for submodule in submodules:
         if submodule == name:
             return True
     return False
 
-def get_git_ignored_files(repo_directory):
-    return  subprocess.run(
-        ['git', 'ls-files', '--others', '--ignored', '--exclude-standard'],
-        capture_output=True,
-        text=True,
-        check=True
-    ).splitlines()
-
 if __name__ == "__main__":
-    repos = []
+    if not os.path.exists(".gitm"):
+        print(f"no .gitm file in directory {root}")
+        os._exit(0)
+
+    config_repos = []
     with open(".gitm", 'r') as f:
         for line in f:
-            repos.append(Repo(line.strip()))
+            config_repos.append(Repo(line.strip()))
+
+    update_submodules()
+    repos = []
+
+    for repo in config_repos:
+        if os.path.isdir(repo.path) and is_submodule(repo.name):
+            repos.append(repo)
+            continue
 
     parser = argparse.ArgumentParser(description="gitm")
     parser.add_argument("command", help="First argument (positional)")
-    # parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose mode")
     args = parser.parse_args()
-
-    print(f"gitm {cwd}")
 
     if args.command == "status":
         for repo in repos:
             print(str(repo))
-        print(get_submodules())
+
     elif args.command == "init":
-        # if os.path.exists(".git") and os.path.exists(".gitm"):
-        #     sys.exit("gitm is already inititalised in this directory")
         if not os.path.exists(".git"):
             fg([Command("git init")])
-        if os.path.exists(".gitm"):
-            for repo in repos:
-                if not os.path.isdir(repo.path) or not is_submodule(repo.name):
-                    fg([Command(['git submodule add', repo.url, repo.local_path])]) #, Command('git submodule update --init --recursive')
-                    fg([Command('gitm init', cwd=repo.path)])
+        for repo in config_repos:
+            if os.path.isdir(repo.path) and is_submodule(repo.name):
+                repos.append(repo)
+                continue
+            fg([Command(['git submodule add', repo.url, repo.local_path])]) #, Command('git submodule update --init --recursive')
+            if os.path.isdir(repo.path):
+                fg([Command('gitm init', cwd=repo.path)])
+            update_submodules()
+            if os.path.isdir(repo.path) and is_submodule(repo.name):
+                repos.append(repo)
+            else:
+                exit("couldn't add submodule: " + repo.name)
 
-    # elif cmd == "clone":
-    #     for repo in repos:
-    #         if not os.path.isdir(self.path):
-    #             command('git submodule add ' + self.url)
-    #             command('git submodule update --init --recursive')
-    # elif cmd == "mirror":
-    #     for repo in repos: 
-    #         repo.clone()
-    #         command('git fetch --all', cwd=repo.path)
+    elif args.command == "mirror":
+        for repo in repos:
+            print(repo)
+            fg([Command('git submodule update --init --recursive')])
+            fg([Command('git fetch --all', cwd=repo.path)])
+            fg([Command('gitm mirror', cwd=repo.path)])
+
     else:
         print(f"no command {args.command}")
