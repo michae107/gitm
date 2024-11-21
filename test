@@ -1,0 +1,6 @@
+#!/bin/sh
+rm -rf build/tests/ \
+    && mkdir -p build \
+    && cp -r tests build/tests \
+    && cd build/tests \
+    && gitm update

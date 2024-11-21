@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 SCRIPT_NAME="gitm.py"
 COMMAND_NAME="gitm"
 DESTINATION="/usr/local/bin"

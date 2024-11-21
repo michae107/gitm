@@ -116,8 +116,7 @@ def is_submodule(name):
 config = configparser.ConfigParser()
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="gitm")
-    parser.add_argument("command", help="First argument (positional)")
-    parser.add_argument('--name', help='path') # todo improve ux of cli
+    parser.add_argument("command", help="init, update, status, create")
     args = parser.parse_args()
 
     if args.command == "init":
@@ -151,33 +150,41 @@ if __name__ == "__main__":
         for repo in repos:
             print(str(repo))
 
+    elif args.command == "add":
+        # todo
+        print("")
+
     elif args.command == "update":
         if not os.path.exists(".git"):
             fg([Command("git init")])
+
         for repo in config_repos:
             if os.path.isdir(repo.path) and is_submodule(repo.path):
                 repos.append(repo)
-                continue
-            fg([Command(['git submodule add', repo.url, repo.path])]) #, Command('git submodule update --init --recursive')
-            if os.path.isdir(repo.path):
-                fg([Command('gitm init', cwd=repo.path)])
-            update_submodules()
-            if os.path.isdir(repo.path) and is_submodule(repo.path):
-                repos.append(repo)
             else:
-                exit("couldn't add submodule: " + repo.name)
+                # add git submodule
+                fg([Command(['git submodule add', repo.url, repo.path])]) #, Command('git submodule update --init --recursive')
+                if os.path.isdir(repo.path):
+                    fg([Command('gitm init', cwd=repo.path)])
+
+                # now we reload 'git submodule --list' to make sure it was successful
+                update_submodules()
+                if os.path.isdir(repo.path) and is_submodule(repo.path):
+                    repos.append(repo)
+                else:
+                    exit("couldn't add submodule: " + repo.name)
 
     elif args.command == "create":
         if not args.name:
             exit(f"no --name")
         create_repo(args.name, GitlabEndpoint())
 
-    elif args.command == "mirror":
-        for repo in repos:
-            print(repo)
-            fg([Command('git submodule update --init --recursive')])
-            fg([Command('git fetch --all', cwd=repo.path)])
-            fg([Command('gitm mirror', cwd=repo.path)])
+    # elif args.command == "mirror":
+    #     for repo in repos:
+    #         print(repo)
+    #         fg([Command('git submodule update --init --recursive')])
+    #         fg([Command('git fetch --all', cwd=repo.path)])
+    #         fg([Command('gitm mirror', cwd=repo.path)])
 
     else:
         print(f"no command {args.command}")
