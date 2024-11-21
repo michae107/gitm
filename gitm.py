@@ -27,12 +27,13 @@ class Command:
         self.command = command
         self.cwd = cwd
 
-    def run(self):
+    def run(self, silent: bool = False):
         command_parsed = self.command
         if not isinstance(command_parsed, str):
             command_parsed = ' '.join(command_parsed)
 
-        print("[debug]: " + str(self.cwd) + " : " + command_parsed)
+        if not silent:
+            print("Run: " + str(self.cwd) + " : " + command_parsed)
 
         process = subprocess.Popen(command_parsed.split(" "), cwd=self.cwd, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
         stdout, stderr = process.communicate()
@@ -95,7 +96,7 @@ def create_repo(path, endpoint):
 
 submodules = []
 def update_submodules():
-    lines = Command('git submodule').run().split("\n")
+    lines = Command('git submodule').run(silent = True).split("\n")
     submodules.clear()
     for line in lines:
         if len(line) == 0: continue
@@ -159,8 +160,7 @@ if __name__ == "__main__":
             else:
                 # add git submodule
                 fg([Command(['git submodule add', repo.url, repo.path])]) #, Command('git submodule update --init --recursive')
-                if os.path.isdir(repo.path):
-                    fg([Command('gitm init', cwd=repo.path)])
+                fg([Command(['git submodule update --init --recursive'])])
 
                 # now we reload 'git submodule --list' to make sure it was successful
                 update_submodules()
