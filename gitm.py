@@ -11,9 +11,8 @@ import configparser
 root = os.getcwd()
 
 # todo 
-# allow set remotes of all repos
 # github api create repo
-# check file sizes for lfs with >git ls-files --others --ignored --exclude-standard
+# 
 
 class Repo:
     def __init__(self, path, url):
@@ -21,7 +20,7 @@ class Repo:
         self.url = url
 
     def __repr__(self):
-        return f"{self.path} {self.url} {self.url}"
+        return f"{self.path} {self.url}"
 
 class Command:
     def __init__(self, command, cwd=root):
@@ -124,7 +123,7 @@ if __name__ == "__main__":
     if args.command == "init":
         if os.path.exists(".gitm"):
             exit(f"gitm is already initialised in this directory")
-        os.path.makedirs(".gitm")
+        os.makedirs(".gitm")
         print("initialised empty .gitm repository")
         exit(0)
 
