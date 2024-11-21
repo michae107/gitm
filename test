@@ -1,6 +1,8 @@
-#!/bin/sh
-rm -rf build/tests/ \
+#!/bin/bash
+source .venv/bin/activate \
+    && rm -rf build/tests/ \
     && mkdir -p build \
     && cp -r tests build/tests \
+    && cp gitm.py build/tests/gitm.py \
     && cd build/tests \
-    && gitm update
+    && python3 gitm.py update
