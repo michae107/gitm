@@ -56,11 +56,6 @@ class GitlabEndpoint:
         self.header = {"PRIVATE-TOKEN": self.secret}
 
     def create_repo(self, name) -> str:
-        # response = requests.get("https://gitgud.io/api/v4/projects", headers=self.header, data={"name": name})
-        # print(response.json())
-        # if response.status_code != 404:
-        #     print(f"gitlab get repo '{name}' was not 404, code: {response.status_code}")
-        #     exit(1)
         response = requests.post("https://gitgud.io/api/v4/projects", headers=self.header, data={"name": name})
         if response.status_code != 201:
             print(f"gitlab create repo '{name}' failed with code: {response.status_code}")
@@ -178,13 +173,6 @@ if __name__ == "__main__":
         if not args.name:
             exit(f"no --name")
         create_repo(args.name, GitlabEndpoint())
-
-    # elif args.command == "mirror":
-    #     for repo in repos:
-    #         print(repo)
-    #         fg([Command('git submodule update --init --recursive')])
-    #         fg([Command('git fetch --all', cwd=repo.path)])
-    #         fg([Command('gitm mirror', cwd=repo.path)])
 
     else:
         print(f"no command {args.command}")
