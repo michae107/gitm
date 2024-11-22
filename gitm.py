@@ -108,6 +108,10 @@ def main():
     parser.add_argument("command", help="init, update, status, create")
     args = parser.parse_args()
 
+    if args.command == "help":
+        print("todo")
+        return
+
     if args.command == "init":
         if os.path.exists(".gitm"):
             sys.exit("gitm is already initialised in this directory")
