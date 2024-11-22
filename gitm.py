@@ -1,4 +1,5 @@
 #!/bin/python3
+import sys
 import os
 import argparse
 import requests
@@ -19,27 +20,26 @@ def get_ssh_key():
     ]
 
     if not os.path.isdir(ssh_dir):
-        exit(f"SSH directory does not exist: {ssh_dir}")
-    
+        sys.exit(f"SSH directory does not exist: {ssh_dir}")
+
     for private_key, public_key in key_files:
         public_key_path = os.path.join(ssh_dir, public_key)
         private_key_path = os.path.join(ssh_dir, private_key)
-        
+
         if os.path.exists(public_key_path) and os.path.exists(private_key_path):
             return (public_key_path, private_key_path)
-    
+
     assert False
 
 class GitmPygit2Auth(pygit2.RemoteCallbacks):
     def credentials(self, url, username_from_url, allowed_types):
         if allowed_types & pygit2.enums.CredentialType.USERNAME:
-            return pygit2.Username("git")
-        elif allowed_types & pygit2.enums.CredentialType.SSH_KEY:
+            return pygit2.Username("gitm")
+        if allowed_types & pygit2.enums.CredentialType.SSH_KEY:
             ssh_key = get_ssh_key()
             print("using ssh key-pair " + str(ssh_key))
             return pygit2.Keypair("git", ssh_key[0], ssh_key[1], "")
-        else:
-            return None
+        return None
 
 class Repo:
     def __init__(self, path, url):
@@ -58,27 +58,27 @@ class GitlabEndpoint:
         response = requests.post("https://gitlab.com/api/v4/projects", headers=self.header, data={"name": name})
         if response.status_code != 201:
             print(f"gitlab create repo '{name}' failed with code: {response.status_code}")
-            exit(1)
+            sys.exit(1)
         print(response.json())
         return response.json()["ssh_url_to_repo"]
 
 def create_repo(path, endpoint):
     name = os.path.basename(path)
     if not re.match(r'^[a-zA-Z0-9._-]+$', name):
-        exit(f"Repository name is invalid: " + name)
+        sys.exit("Repository name is invalid: " + name)
     if os.path.exists(path):
-        exit(f"Repository path already exists: " + path)
+        sys.exit("Repository path already exists: " + path)
 
     repo_git_url = endpoint.create_repo(name)
 
     os.makedirs(path)
-    create_repository = pygit2.init_repository(path = path, origin_url = repo_git_url)
+    pygit2.init_repository(path = path, origin_url = repo_git_url)
 
     config[f'submodule "{name}"'] = {
         'path': path,
         'url': repo_git_url
     }
-    with open('.gitm', 'w') as configfile:
+    with open('.gitm', 'w', encoding = "utf8") as configfile:
         config.write(configfile)
     
     update()
@@ -94,8 +94,8 @@ def update():
                 repository.submodules.add(repo.url, repo.path, callbacks=GitmPygit2Auth())
                 sub_repository = pygit2.Repository(repo.path)
                 sub_repository.submodules.update(init=True)
+                print("added submodule " + str(repo))
         repository.submodules.update(init=True)
-        print(str(repository.listall_submodules()))
 
 
 repository: pygit2.Repository = None
@@ -110,8 +110,8 @@ def main():
 
     if args.command == "init":
         if os.path.exists(".gitm"):
-            exit("gitm is already initialised in this directory")
-        with open(".gitm", "w") as file:
+            sys.exit("gitm is already initialised in this directory")
+        with open(".gitm", "w", encoding = "utf8") as file:
             file.write("")
         print("initialised empty .gitm repository")
         return
@@ -122,8 +122,9 @@ def main():
 
     repository = pygit2.Repository(_cwd)
     config = configparser.ConfigParser()
+
     config.read('.gitm')
-    with open('.gitm', 'r') as file:
+    with open('.gitm', 'r', encoding = "utf8") as file:
         for key in config.sections():
             config_repos.append(Repo(config[key]["path"], config[key]["url"]))
 
@@ -132,7 +133,7 @@ def main():
 
     elif args.command == "create":
         if not args.name:
-            exit(f"no --name")
+            sys.exit("no --name")
         create_repo(args.name, GitlabEndpoint())
 
     elif args.command == "update":
