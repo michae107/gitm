@@ -39,6 +39,8 @@ You now have a git repository containing all the submodules listed in your .gitm
 
 - deleting submodules with the command-line
 - a way to view the status of subrepositories
+- global way to manage configuration of submodules
+- lfs integration
 - other useful features that a simple monorepo might want
 
 ## License
