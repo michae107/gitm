@@ -12,7 +12,6 @@ gitm only works on linux and other unix-like operating systems (for now).
 git clone git@github.com:michae107/gitm.git
 cd gitm
 ./install
-gitm help
 ```
 
 ### Usage
