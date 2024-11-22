@@ -6,10 +6,7 @@ if [ ! -d "./.venv/" ]; then
         pip3 install -r ./requirements.txt
 fi
 
-rm -rf build/tests/ &&\
+rm -rf build/ &&\
     mkdir -p build &&\
-    cp -r tests build/tests &&\
-    cp gitm.py build/tests/gitm.py &&\
-    cd build/tests &&\
-    python3 gitm.py update &&\
-    python3 gitm.py status
+    cp gitm.py build/gitm.py &&\
+    python3 gitm.py $@

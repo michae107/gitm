@@ -1,8 +1,7 @@
 #!/bin/sh
-SCRIPT_NAME="gitm.py"
+SCRIPT_NAME="gitm"
 COMMAND_NAME="gitm"
 DESTINATION="/usr/local/bin"
-
 
 echo "installing to $DESTINATION/$COMMAND_NAME" &&\
     sudo ln -sf "$(pwd)/$SCRIPT_NAME" "$DESTINATION/$COMMAND_NAME" &&\

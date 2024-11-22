@@ -1,8 +1,6 @@
 [submodule "TheAlgorithms/C"]
-path = algorithms
-url = https://github.com/TheAlgorithms/C
-
+    path = algorithms
+    url = https://github.com/TheAlgorithms/C
 [submodule "git-submodule"]
-path = git-submodule
-url = git@github.com:whatasame-labs/git-submodule.git
-
+    path = git-submodule
+    url = git@github.com:whatasame-labs/git-submodule.git

@@ -1,18 +1,45 @@
 #!/bin/python3
-import sys
 import os
-import subprocess
 import argparse
-import threading
 import requests
 import re
 import configparser
+import pygit2
 
-root = os.getcwd()
-
-# todo 
+# todo
 # github api create repo
-# 
+# git lfs integration
+
+def get_ssh_key():
+    ssh_dir = os.path.expanduser("~/.ssh/")
+    key_files = [
+        ("id_rsa", "id_rsa.pub"),
+        ("id_ecdsa", "id_ecdsa.pub"),
+        ("id_ed25519", "id_ed25519.pub")
+    ]
+
+    if not os.path.isdir(ssh_dir):
+        exit(f"SSH directory does not exist: {ssh_dir}")
+    
+    for private_key, public_key in key_files:
+        public_key_path = os.path.join(ssh_dir, public_key)
+        private_key_path = os.path.join(ssh_dir, private_key)
+        
+        if os.path.exists(public_key_path) and os.path.exists(private_key_path):
+            return (public_key_path, private_key_path)
+    
+    assert False
+
+class GitmPygit2Auth(pygit2.RemoteCallbacks):
+    def credentials(self, url, username_from_url, allowed_types):
+        if allowed_types & pygit2.enums.CredentialType.USERNAME:
+            return pygit2.Username("git")
+        elif allowed_types & pygit2.enums.CredentialType.SSH_KEY:
+            ssh_key = get_ssh_key()
+            print("using ssh key-pair " + str(ssh_key))
+            return pygit2.Keypair("git", ssh_key[0], ssh_key[1], "")
+        else:
+            return None
 
 class Repo:
     def __init__(self, path, url):
@@ -22,42 +49,13 @@ class Repo:
     def __repr__(self):
         return f"{self.path} {self.url}"
 
-class Command:
-    def __init__(self, command, cwd=root):
-        self.command = command
-        self.cwd = cwd
-
-    def run(self, silent: bool = False):
-        command_parsed = self.command
-        if not isinstance(command_parsed, str):
-            command_parsed = ' '.join(command_parsed)
-
-        if not silent:
-            print("Run: " + str(self.cwd) + " : " + command_parsed)
-
-        process = subprocess.Popen(command_parsed.split(" "), cwd=self.cwd, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-        stdout, stderr = process.communicate()
-
-        if process.returncode != 0:
-            print(stderr.decode())
-            os._exit(1)
-        return stdout.decode()
-
-def fg(command):
-    for i in command:
-        i.run()
-
-def bg(command):
-    thread = threading.Thread(target=lambda: fg(command))
-    thread.start()
-
 class GitlabEndpoint:
     def __init__(self):
         self.secret = os.environ['GITLAB_SECRET']
         self.header = {"PRIVATE-TOKEN": self.secret}
 
     def create_repo(self, name) -> str:
-        response = requests.post("https://gitgud.io/api/v4/projects", headers=self.header, data={"name": name})
+        response = requests.post("https://gitlab.com/api/v4/projects", headers=self.header, data={"name": name})
         if response.status_code != 201:
             print(f"gitlab create repo '{name}' failed with code: {response.status_code}")
             exit(1)
@@ -74,7 +72,7 @@ def create_repo(path, endpoint):
     repo_git_url = endpoint.create_repo(name)
 
     os.makedirs(path)
-    fg([Command('git init', cwd=path)])
+    create_repository = pygit2.init_repository(path = path, origin_url = repo_git_url)
 
     config[f'submodule "{name}"'] = {
         'path': path,
@@ -82,97 +80,65 @@ def create_repo(path, endpoint):
     }
     with open('.gitm', 'w') as configfile:
         config.write(configfile)
+    
+    update()
 
-    abs_path = os.path.abspath(path)
-    fg([
-        Command('git init', abs_path), # todo change cwd to beginning so text begin is aligned
-        Command(['git remote add origin', repo_git_url], cwd=abs_path),
-        Command('touch README.md', cwd=abs_path),
-        Command('git add README.md', cwd=abs_path),
-        Command('git commit -m \"auto\"', cwd=abs_path),
-        Command('git push --set-upstream origin master', cwd=abs_path),
-        Command('gitm update', cwd=root)
-    ])
+def update():
+    if not os.path.exists(".git"):
+        print("initialise gitm git repository: " + _cwd)
+        pygit2.init_repository(_cwd)
+        repository = pygit2.Repository(_cwd)
 
-submodules = []
-def update_submodules():
-    lines = Command('git submodule').run(silent = True).split("\n")
-    submodules.clear()
-    for line in lines:
-        if len(line) == 0: continue
-        submodules.append(line.strip().split(" ")[1])
-    return submodules
+        for repo in config_repos:
+            if not repo.path in repository.listall_submodules():
+                repository.submodules.add(repo.url, repo.path, callbacks=GitmPygit2Auth())
+                sub_repository = pygit2.Repository(repo.path)
+                sub_repository.submodules.update(init=True)
+        repository.submodules.update(init=True)
+        print(str(repository.listall_submodules()))
 
-def is_submodule(name):
-    for submodule in submodules:
-        if submodule == name:
-            return True
-    return False
 
+repository: pygit2.Repository = None
+_cwd: str = os.getcwd()
+config_repos = []
 config = configparser.ConfigParser()
-if __name__ == "__main__":
+
+def main():
     parser = argparse.ArgumentParser(description="gitm")
     parser.add_argument("command", help="init, update, status, create")
     args = parser.parse_args()
 
     if args.command == "init":
         if os.path.exists(".gitm"):
-            exit(f"gitm is already initialised in this directory")
-        os.makedirs(".gitm")
+            exit("gitm is already initialised in this directory")
+        with open(".gitm", "w") as file:
+            file.write("")
         print("initialised empty .gitm repository")
-        exit(0)
+        return
 
     if not os.path.exists(".gitm"):
-        print(f"no .gitm file in directory {root}")
-        os._exit(0)
+        print(f"no .gitm file in directory {_cwd}")
+        return
 
-    config_repos = []
-
+    repository = pygit2.Repository(_cwd)
     config = configparser.ConfigParser()
     config.read('.gitm')
     with open('.gitm', 'r') as file:
         for key in config.sections():
             config_repos.append(Repo(config[key]["path"], config[key]["url"]))
 
-    update_submodules()
-    repos = []
-
-    for repo in config_repos:
-        if os.path.isdir(repo.path) and is_submodule(repo.path):
-            repos.append(repo)
-            continue
-
     if args.command == "status":
-        for repo in repos:
-            print(str(repo))
-
-    elif args.command == "add":
-        # todo
-        print("")
-
-    elif args.command == "update":
-        if not os.path.exists(".git"):
-            fg([Command("git init")])
-
-        for repo in config_repos:
-            if os.path.isdir(repo.path) and is_submodule(repo.path):
-                repos.append(repo)
-            else:
-                # add git submodule
-                fg([Command(['git submodule add', repo.url, repo.path])]) #, Command('git submodule update --init --recursive')
-                fg([Command(['git submodule update --init --recursive'])])
-
-                # now we reload 'git submodule --list' to make sure it was successful
-                update_submodules()
-                if os.path.isdir(repo.path) and is_submodule(repo.path):
-                    repos.append(repo)
-                else:
-                    exit("couldn't add submodule: " + repo.name)
+        print("submodules: " + str(repository.listall_submodules()))
 
     elif args.command == "create":
         if not args.name:
             exit(f"no --name")
         create_repo(args.name, GitlabEndpoint())
 
+    elif args.command == "update":
+        update()
+
     else:
         print(f"no command {args.command}")
+
+if __name__ == "__main__": main()
