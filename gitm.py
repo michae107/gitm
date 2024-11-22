@@ -62,7 +62,7 @@ class GitlabEndpoint:
         print(response.json())
         return response.json()["ssh_url_to_repo"]
 
-def create_repo(path, endpoint):
+def create_repo(repository, path, endpoint):
     name = os.path.basename(path)
     if not re.match(r'^[a-zA-Z0-9._-]+$', name):
         sys.exit("Repository name is invalid: " + name)
@@ -80,15 +80,15 @@ def create_repo(path, endpoint):
     }
     with open('.gitm', 'w', encoding = "utf8") as configfile:
         config.write(configfile)
-    
+
     update(repository)
 
-repository: pygit2.Repository = None
 _cwd: str = os.getcwd()
 config_repos = []
 config = configparser.ConfigParser()
 
 def update(repository):
+    repository = pygit2.Repository(_cwd)
     if not os.path.exists(".git"):
         print("initialise gitm git repository: " + _cwd)
         pygit2.init_repository(_cwd)
@@ -117,7 +117,7 @@ def main():
             sys.exit("gitm is already initialised in this directory")
         with open(".gitm", "w", encoding = "utf8") as file:
             file.write("")
-        update(repository)
+        update(pygit2.Repository(_cwd))
         print("initialised empty .gitm repository")
         return
 
@@ -139,7 +139,7 @@ def main():
     elif args.command == "create":
         if not args.name:
             sys.exit("no --name")
-        create_repo(args.name, GitlabEndpoint())
+        create_repo(repository, args.name, GitlabEndpoint())
 
     elif args.command == "update":
         update(repository)
