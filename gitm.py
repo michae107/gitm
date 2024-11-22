@@ -81,27 +81,27 @@ def create_repo(path, endpoint):
     with open('.gitm', 'w', encoding = "utf8") as configfile:
         config.write(configfile)
     
-    update()
-
-def update():
-    if not os.path.exists(".git"):
-        print("initialise gitm git repository: " + _cwd)
-        pygit2.init_repository(_cwd)
-        repository = pygit2.Repository(_cwd)
-
-        for repo in config_repos:
-            if not repo.path in repository.listall_submodules():
-                repository.submodules.add(repo.url, repo.path, callbacks=GitmPygit2Auth())
-                sub_repository = pygit2.Repository(repo.path)
-                sub_repository.submodules.update(init=True)
-                print("added submodule " + str(repo))
-        repository.submodules.update(init=True)
-
+    update(repository)
 
 repository: pygit2.Repository = None
 _cwd: str = os.getcwd()
 config_repos = []
 config = configparser.ConfigParser()
+
+def update(repository):
+    if not os.path.exists(".git"):
+        print("initialise gitm git repository: " + _cwd)
+        pygit2.init_repository(_cwd)
+        repository = pygit2.Repository(_cwd)
+
+    for repo in config_repos:
+        if not repo.path in repository.listall_submodules():
+            repository.submodules.add(repo.url, repo.path, callbacks=GitmPygit2Auth())
+            sub_repository = pygit2.Repository(repo.path)
+            sub_repository.submodules.update(init=True)
+            print("added submodule " + str(repo))
+    repository.submodules.update(init=True)
+
 
 def main():
     parser = argparse.ArgumentParser(description="gitm")
@@ -117,6 +117,7 @@ def main():
             sys.exit("gitm is already initialised in this directory")
         with open(".gitm", "w", encoding = "utf8") as file:
             file.write("")
+        update(repository)
         print("initialised empty .gitm repository")
         return
 
@@ -141,7 +142,7 @@ def main():
         create_repo(args.name, GitlabEndpoint())
 
     elif args.command == "update":
-        update()
+        update(repository)
 
     else:
         print(f"no command {args.command}")
